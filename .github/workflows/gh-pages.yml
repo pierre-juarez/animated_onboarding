@@ -15,14 +15,11 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
-  build:
-    name: 🏗️ Build Flutter Web
+  build-and-deploy:
+    name: 🏗️ Build & Deploy Flutter Web
     runs-on: ubuntu-latest
+
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
@@ -51,27 +48,22 @@ jobs:
           echo "🌐 Building web app for production..."
           flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
-      - name: 📄 Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: 📦 Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: "./build/web"
-
-  deploy:
-    name: 🚀 Deploy to GitHub Pages
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
       - name: 🚀 Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
+          force_orphan: true
+          user_name: "github-actions[bot]"
+          user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_message: |
+            🚀 Deploy ${{ github.event.release.tag_name || 'manual' }}
+
+            Released: ${{ github.event.release.name || inputs.release_name }}
+            Commit: ${{ github.sha }}
 
       - name: ✅ Deployment complete
         run: |
           echo "🎉 Deployment successful!"
-          echo "🌐 Your app is available at: ${{ steps.deployment.outputs.page_url }}"
+          echo "🌐 Your app will be available at: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          echo "⏰ It may take a few minutes to be live."
