@@ -38,7 +38,7 @@ class _OnboardingViewState extends State<OnboardingView> {
         bottomButtonColor: CupertinoColors.activeBlue,
         bottomButtonChild: Text("Get Started"),
         onPressedOnLastPage: () {
-          Navigator.of(context).pushReplacement(CupertinoPageRoute(builder: (_) => HomeView()));
+          Navigator.of(context).push(CupertinoPageRoute(builder: (_) => HomeView()));
         },
         pages: [_buildWelcomePage(), _buildCarSelectionPage(), _buildPricingPage()],
       ),
