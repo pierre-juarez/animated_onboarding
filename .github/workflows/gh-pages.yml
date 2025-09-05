@@ -74,12 +74,10 @@ jobs:
           echo "📊 Build size:"
           du -sh build/web/
 
-      - name: 📤 Upload build artifacts
-        uses: actions/upload-artifact@v3
+      - name: 📦 Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: flutter-web-build
-          path: build/web/
-          retention-days: 1
+          path: "./build/web"
 
   # 🚀 JOB 2: Deploy to GitHub Pages (depends on build)
   deploy:
@@ -88,33 +86,12 @@ jobs:
     needs: build # 👈 Esto crea el diagrama de dependencias
     environment:
       name: github-pages
-      url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: 📥 Download build artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: flutter-web-build
-          path: ./web-build
-
-      - name: 🔍 Verify artifacts
-        run: |
-          echo "📁 Downloaded artifacts:"
-          ls -la ./web-build/
-          echo "🌐 Checking index.html exists:"
-          test -f ./web-build/index.html && echo "✅ index.html found" || echo "❌ index.html missing"
-
       - name: 🚀 Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./web-build
-          commit_message: |
-            🚀 Deploy ${{ github.event.release.tag_name || 'manual' }}
-
-            📝 ${{ github.event.release.name || inputs.release_name }}
-            💾 Commit: ${{ github.sha }}
-            👤 By: ${{ github.actor }}
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: ✅ Deployment summary
         run: |
