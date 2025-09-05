@@ -2,9 +2,8 @@ name: 🚀 Deploy Flutter Web to GitHub Pages
 
 on:
   release:
-    types: [published] # Solo cuando publicas una release
-
-  workflow_dispatch: # Permite ejecutar manualmente
+    types: [published]
+  workflow_dispatch:
     inputs:
       release_name:
         description: "🏷️ Release name (optional)"
@@ -16,11 +15,14 @@ permissions:
   pages: write
   id-token: write
 
-jobs:
-  build-and-deploy:
-    name: 🏗️ Build & Deploy Flutter Web
-    runs-on: ubuntu-latest
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
+jobs:
+  build:
+    name: 🏗️ Build Flutter Web
+    runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
@@ -49,19 +51,27 @@ jobs:
           echo "🌐 Building web app for production..."
           flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
-      - name: 🚀 Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web
-          commit_message: |
-            🚀 Deploy ${{ github.event.release.tag_name || 'manual' }}
+      - name: 📄 Setup Pages
+        uses: actions/configure-pages@v4
 
-            Released: ${{ github.event.release.name || inputs.release_name }}
-            Commit: ${{ github.sha }}
+      - name: 📦 Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./build/web"
+
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: ✅ Deployment complete
         run: |
           echo "🎉 Deployment successful!"
-          echo "🌐 Your app will be available at: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-          echo "⏰ It may take a few minutes to be live."
+          echo "🌐 Your app is available at: ${{ steps.deployment.outputs.page_url }}"
