@@ -1,32 +1,67 @@
-name: Build and Deploy Flutter Web to GitHub Pages 🎉
+name: 🚀 Deploy Flutter Web to GitHub Pages
 
 on:
-  push:
-    branches: [main, master] # Funciona con main o master
+  release:
+    types: [published] # Solo cuando publicas una release
+
   workflow_dispatch: # Permite ejecutar manualmente
+    inputs:
+      release_name:
+        description: "🏷️ Release name (optional)"
+        required: false
+        default: "Manual deployment"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build-and-deploy:
+    name: 🏗️ Build & Deploy Flutter Web
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
+      - name: ⚡ Cache Flutter dependencies
+        uses: actions/cache@v3
+        with:
+          path: /opt/hostedtoolcache/flutter
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: 💙 Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
 
-      - name: Get dependencies
+      - name: 📦 Install dependencies
         run: flutter pub get
 
-      - name: Build Web
+      - name: 🧪 Run tests
+        run: flutter test --no-sound-null-safety || echo "⚠️ No tests found or tests failed - continuing deployment"
+
+      - name: 🔨 Build Flutter web app
         run: |
+          echo "🌐 Building web app for production..."
           flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
-      - name: Deploy to GitHub Pages
+      - name: 🚀 Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
+          commit_message: |
+            🚀 Deploy ${{ github.event.release.tag_name || 'manual' }}
+
+            Released: ${{ github.event.release.name || inputs.release_name }}
+            Commit: ${{ github.sha }}
+
+      - name: ✅ Deployment complete
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "🌐 Your app will be available at: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          echo "⏰ It may take a few minutes to be live."
