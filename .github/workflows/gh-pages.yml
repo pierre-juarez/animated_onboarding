@@ -2,29 +2,40 @@ name: 🚀 Deploy Flutter Web to GitHub Pages
 
 on:
   release:
-    types: [published]
-  workflow_dispatch:
+    types: [published] # Solo cuando publicas una release
+  workflow_dispatch: # Permite ejecutar manualmente
     inputs:
       release_name:
         description: "🏷️ Release name (optional)"
         required: false
         default: "Manual deployment"
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Concurrency para evitar deploys simultáneos
+concurrency:
+  group: pages-deployment
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    name: 🏗️ Build & Deploy Flutter Web
+  # 🏗️ JOB 1: Build the Flutter app
+  build:
+    name: 🏗️ Build Flutter Web App
     runs-on: ubuntu-latest
 
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necesario para git info
 
-      - name: ⚡ Cache Flutter dependencies
+      - name: 🔍 Show build info
+        run: |
+          echo "🏷️ Release: ${{ github.event.release.tag_name || 'manual' }}"
+          echo "📝 Release name: ${{ github.event.release.name || inputs.release_name }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "💾 Commit: ${{ github.sha }}"
+          echo "👤 Triggered by: ${{ github.actor }}"
+
+      - name: ⚡ Cache Flutter SDK
         uses: actions/cache@v3
         with:
           path: /opt/hostedtoolcache/flutter
@@ -37,33 +48,82 @@ jobs:
         with:
           channel: "stable"
 
-      - name: 📦 Install dependencies
-        run: flutter pub get
+      - name: 🔧 Flutter doctor
+        run: flutter doctor -v
 
-      - name: 🧪 Run tests
-        run: flutter test --no-sound-null-safety || echo "⚠️ No tests found or tests failed - continuing deployment"
+      - name: 📦 Install dependencies
+        run: |
+          echo "📥 Installing Flutter dependencies..."
+          flutter pub get
+          echo "✅ Dependencies installed successfully!"
+
+      - name: 🧹 Clean previous builds
+        run: flutter clean
 
       - name: 🔨 Build Flutter web app
         run: |
           echo "🌐 Building web app for production..."
-          flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+          echo "🔗 Base href will be: /${{ github.event.repository.name }}/"
+          flutter build web --release --base-href "/${{ github.event.repository.name }}/" --verbose
+          echo "✅ Build completed successfully!"
+
+      - name: 📋 Show build artifacts
+        run: |
+          echo "📁 Build directory contents:"
+          ls -la build/web/
+          echo "📊 Build size:"
+          du -sh build/web/
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: flutter-web-build
+          path: build/web/
+          retention-days: 1
+
+  # 🚀 JOB 2: Deploy to GitHub Pages (depends on build)
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build # 👈 Esto crea el diagrama de dependencias
+    environment:
+      name: github-pages
+      url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
+    steps:
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: flutter-web-build
+          path: ./web-build
+
+      - name: 🔍 Verify artifacts
+        run: |
+          echo "📁 Downloaded artifacts:"
+          ls -la ./web-build/
+          echo "🌐 Checking index.html exists:"
+          test -f ./web-build/index.html && echo "✅ index.html found" || echo "❌ index.html missing"
 
       - name: 🚀 Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web
-          force_orphan: true
-          user_name: "github-actions[bot]"
-          user_email: "github-actions[bot]@users.noreply.github.com"
+          publish_dir: ./web-build
           commit_message: |
             🚀 Deploy ${{ github.event.release.tag_name || 'manual' }}
 
-            Released: ${{ github.event.release.name || inputs.release_name }}
-            Commit: ${{ github.sha }}
+            📝 ${{ github.event.release.name || inputs.release_name }}
+            💾 Commit: ${{ github.sha }}
+            👤 By: ${{ github.actor }}
 
-      - name: ✅ Deployment complete
+      - name: ✅ Deployment summary
         run: |
-          echo "🎉 Deployment successful!"
-          echo "🌐 Your app will be available at: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-          echo "⏰ It may take a few minutes to be live."
+          echo "🎉 Deployment completed successfully!"
+          echo "🌐 Your app is available at:"
+          echo "   👉 https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          echo ""
+          echo "📊 Deployment info:"
+          echo "   🏷️  Version: ${{ github.event.release.tag_name || 'manual' }}"
+          echo "   📝  Release: ${{ github.event.release.name || inputs.release_name }}"
+          echo "   ⏰  Time: $(date)"
+          echo "   👤  Actor: ${{ github.actor }}"
